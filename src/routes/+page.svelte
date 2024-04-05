@@ -43,8 +43,8 @@
     };
 
     async function requestUpdate(e: MouseEvent) {
-        // const button = e.target as HTMLButtonElement;
-        // button.disabled = true;
+        const button = e.target as HTMLButtonElement;
+        button.disabled = true;
 
         const response = await fetch(`/api/request-update`, {
 			method: 'POST',
