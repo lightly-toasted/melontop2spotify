@@ -48,7 +48,7 @@ async function updatePlaylist(name: string) {
     const trackURIs = new Array(100).fill(null);
 
     async function getTrackURI(title: string) {
-        const results = await spotify.searchTracks(title, { limit: 1 })
+        const results = await spotify.searchTracks(title, { limit: 1, market: 'KR' })
         let track_uri = env.UNAVAILABLE_TRACK_URI
         if (results.body.tracks && results.body.tracks.items.length > 0) track_uri = results.body.tracks.items[0].uri
         return track_uri
