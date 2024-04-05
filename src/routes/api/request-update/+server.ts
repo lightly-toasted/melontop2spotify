@@ -24,7 +24,6 @@ const headers = {
 }
 
 async function updatePlaylist(name: string) {
-    // check 
     kv.set('lastcheck', getCurrentTimestamp())
 
     const response = await axios.get(env.MELON_URL, { headers })
@@ -38,39 +37,32 @@ async function updatePlaylist(name: string) {
         chart.push(title);
     });
 
-    const chartHash = md5(chart.join(''));
-    if (await kv.get('latestmelonchart') == chartHash) return setUpdatingState(false)
-    await kv.set('latestmelonchart', chartHash)
+    if (env.UPDATE_IF_CHART_CHANGED === "true") {
+        const chartHash = md5(chart.join(''))
+        if (await kv.get('latestmelonchart') == chartHash) return setUpdatingState(false)
+        await kv.set('latestmelonchart', chartHash)
+    }
+
     const refreshData = await spotify.refreshAccessToken()
     spotify.setAccessToken(refreshData.body.access_token)
 
-    let promises: Promise<void>[] = []
-    const trackURIs = new Array(100).fill(null);
+    const trackURIs = await Promise.all(
+        chart.map(async title => {
+            const results = await spotify.searchTracks(title, { market: 'KR' })
+            let track_uri = env.UNAVAILABLE_TRACK_URI
+            if (results.body.tracks && results.body.tracks.items.length > 0) track_uri = results.body.tracks.items[0].uri
+            return track_uri
+        })
+    )
 
-    async function getTrackURI(title: string) {
-        const results = await spotify.searchTracks(title, { limit: 1, market: 'KR' })
-        let track_uri = env.UNAVAILABLE_TRACK_URI
-        if (results.body.tracks && results.body.tracks.items.length > 0) track_uri = results.body.tracks.items[0].uri
-        return track_uri
-    }
+    console.log(trackURIs)
 
-    chart.forEach(title => {
-        const index = promises.length;
-        promises.push(getTrackURI(title).then(uri => {
-            console.log(uri)
-            trackURIs[index] = uri
-        }));
-    })
-
-    await Promise.all(promises)
-
-    for (let retries = 0; retries < 5; retries++) {
+    for (let retries = 0; retries < 3; retries++) {
         try {
             await spotify.replaceTracksInPlaylist(env.PLAYLIST_ID, trackURIs);
             break;
         } catch (error) {
-            console.table((error as Error))
-            console.log(`갱신 중 오류가 발생했습니다. ${retries + 1}/5회 다시 시도 중...`)
+            console.log(`갱신 중 오류가 발생했습니다. ${retries + 1}/3회 다시 시도 중...`)
         }
         if (retries === 4) {
             console.log('갱신 실패!')
@@ -87,10 +79,6 @@ async function updatePlaylist(name: string) {
     kv.zincrby('topupdaters', 1, name)
     return setUpdatingState(false)
 }
-
-
-
-
 
 export const POST: RequestHandler = async ({ request }) => {
     const data = await request.json()

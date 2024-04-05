@@ -96,7 +96,7 @@
             {/each}
             <div class='flex flex-row mt-12 space-x-4'>
                 <a href="https://open.spotify.com/playlist/4cRo44TavIHN54w46OqRVc?si=108f413accd44043" class="border-2 border-gray-400 rounded px-10 py-3 text-text">플레이리스트 듣기</a>
-                <button on:click={requestUpdate} class="bg-primary rounded px-10 py-3 text-background disabled:grayscale transition">갱신하기 (오류!)</button>
+                <button on:click={requestUpdate} class="bg-primary rounded px-10 py-3 text-background disabled:grayscale transition">갱신하기</button>
             </div>
             <small data-success={requestResponse.success} class="mt-8 text-xs text-red-300 data-[success=true]:text-green-300">{requestResponse.message}</small>
         </div>

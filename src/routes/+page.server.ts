@@ -1,6 +1,5 @@
 import { kv } from '$lib/server/kv';
 
-let count = 0
 export async function load() {
     const top3data = await kv.zrange('topupdaters', -3, -1, {withScores: true});
     top3data.reverse();
@@ -11,8 +10,6 @@ export async function load() {
     }
 
     const lastUpdate = await kv.hgetall('lastupdate')
-    count++
-    console.log(count)
 
     return {top3: top3list, lastUpdate: lastUpdate}
 }
