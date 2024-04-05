@@ -1,0 +1,1 @@
+export const lastUpdate: {at: number, by: string} = {at: 0, by: ''}
