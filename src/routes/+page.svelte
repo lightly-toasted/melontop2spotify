@@ -16,7 +16,6 @@
 
     let name: string = `익명${Math.floor(Math.random() * 100000000)}`;
     let isEditingName = false;
-    let editError = '';
 
     export let data: ServerData;
 
