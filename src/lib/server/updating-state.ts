@@ -1,9 +1,16 @@
-let updating = false;
+export let updating = false;
 
-export function isUpdating() {
-    return updating;
+export type UpdateResult = {
+    success: boolean,
+    message: string
 }
 
-export function setUpdatingState(value: boolean) {
-    updating = value;
+export let updateResult: UpdateResult = {
+    success: true,
+    message: ''
+};
+
+export function setUpdatingState(state: boolean, result?: UpdateResult) {
+    updating = state;
+    if (result) updateResult = result
 }

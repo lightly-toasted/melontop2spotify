@@ -4,7 +4,7 @@ import axios from 'axios';
 import { parse } from 'node-html-parser';
 import { kv } from '$lib/server/kv';
 import { spotify } from '$lib/server/spotify';
-import { isUpdating, setUpdatingState } from '$lib/server/updating-state';
+import { setUpdatingState, updating, type UpdateResult } from '$lib/server/updating-state';
 import md5 from 'md5';
 
 function replaceDatetimePlaceholders(text: string) {
@@ -23,8 +23,16 @@ const headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36"
 }
 
-async function updatePlaylist(name: string) {
+async function updatePlaylist(name: string): Promise<UpdateResult> {
     kv.set('lastcheck', getCurrentTimestamp())
+
+    const refreshData = await spotify.refreshAccessToken()
+    spotify.setAccessToken(refreshData.body.access_token)
+
+    const newPlaylistName = replaceDatetimePlaceholders(env.PLAYLIST_NAME)
+    const newPlaylistDesc = replaceDatetimePlaceholders(env.PLAYLIST_DESC)
+
+    await spotify.changePlaylistDetails(env.PLAYLIST_ID, { name: newPlaylistName, description: newPlaylistDesc })
 
     const response = await axios.get(env.MELON_URL, { headers })
 
@@ -37,14 +45,14 @@ async function updatePlaylist(name: string) {
         chart.push(title);
     });
 
-    if (env.UPDATE_IF_CHART_CHANGED === "true") {
+    if (env.UPDATE_WHEN_CHART_NOT_CHANGED !== "true") {
         const chartHash = md5(chart.join(''))
-        if (await kv.get('latestmelonchart') == chartHash) return setUpdatingState(false)
+        if (await kv.get('latestmelonchart') == chartHash) return {
+            success: false,
+            message: '멜론 차트에 변경 사항이 없습니다.'
+        }
         await kv.set('latestmelonchart', chartHash)
     }
-
-    const refreshData = await spotify.refreshAccessToken()
-    spotify.setAccessToken(refreshData.body.access_token)
 
     const trackURIs = await Promise.all(
         chart.map(async title => {
@@ -55,47 +63,65 @@ async function updatePlaylist(name: string) {
         })
     )
 
-    console.log(trackURIs)
+    const maxRetries = 3
 
-    for (let retries = 0; retries < 3; retries++) {
+    for (let i = 0; i < maxRetries; i++) {
         try {
             await spotify.replaceTracksInPlaylist(env.PLAYLIST_ID, trackURIs);
             break;
-        } catch (error) {
-            console.log(`갱신 중 오류가 발생했습니다. ${retries + 1}/3회 다시 시도 중...`)
-        }
-        if (retries === 4) {
-            console.log('갱신 실패!')
-            return setUpdatingState(false);
+        } catch (e) {
+            if (i === maxRetries - 1) throw e;
+            await new Promise(resolve => setTimeout(resolve, 4000));
         }
     }
 
-    const newPlaylistName = replaceDatetimePlaceholders(env.PLAYLIST_NAME)
-    const newPlaylistDesc = replaceDatetimePlaceholders(env.PLAYLIST_DESC)
-
-    await spotify.changePlaylistDetails(env.PLAYLIST_ID, { name: newPlaylistName, description: newPlaylistDesc })
-
     kv.hset('lastupdate', { at: getCurrentTimestamp(), by: name })
-    kv.zincrby('topupdaters', 1, name)
-    return setUpdatingState(false)
+    const currentCount = await kv.zincrby('topupdaters', 1, name)
+    return {
+        success: true,
+        message: `갱신 성공! ${name} (${currentCount})`
+    }
+}
+
+async function startUpdating(name: string) {
+    setUpdatingState(true)
+    let result: UpdateResult;
+    try {
+        const timeoutPromise = new Promise<UpdateResult>(() => {return {
+            success: false,
+            message: '시간 초과!'
+        }});
+
+        result = await Promise.race([
+            updatePlaylist(name),
+            timeoutPromise
+        ]);
+    } catch (e) {
+        //console.error(e)
+        result = {
+            success: false,
+            message: '알 수 없는 오류가 발생했습니다. Spotify API 문제일 확률이 높습니다.'
+        }
+    }
+    setUpdatingState(false, result)
 }
 
 export const POST: RequestHandler = async ({ request }) => {
     const data = await request.json()
     const name = data.name ?? `익명${Math.floor(Math.random() * 100000000)}`
     
-    if (name.length < 1) return new Response(JSON.stringify({success: false, message: "☒ 이름은 최소 1자 이상이어야 합니다."}), {status: 400});
-    if (name.length > 16) return new Response(JSON.stringify({success: false, message: "☒ 이름은 최대 16자 이하이어야 합니다."}), {status: 400});
+    if (name.length < 1) return new Response(JSON.stringify({success: false, message: "이름은 최소 1자 이상이어야 합니다."}), {status: 400});
+    if (name.length > 16) return new Response(JSON.stringify({success: false, message: "이름은 최대 16자 이하이어야 합니다."}), {status: 400});
 
     const nameRegex = /^[A-Za-z0-9ㄱ-ㅎ가-힣]+$/;
     if (!nameRegex.test(name)) {
-        return new Response(JSON.stringify({success: false, message: "☒ 이름은 영문, 한글, 숫자만 포함해야 합니다."}), {status: 400});
+        return new Response(JSON.stringify({success: false, message: "이름은 영문, 한글, 숫자만 포함해야 합니다."}), {status: 400});
     }
 
     const blacklistedWords = ['도박', '카지노', '베팅'];
     for (let word of blacklistedWords) {
         if (name.includes(word)) {
-            return new Response(JSON.stringify({success: false, message: `☒ 이름에 금지된 단어 '${word}' 가 포함되어 있습니다.`}), {status: 400});
+            return new Response(JSON.stringify({success: false, message: `이름에 금지된 단어 '${word}' 가 포함되어 있습니다.`}), {status: 400});
         }
     }
 
@@ -104,11 +130,10 @@ export const POST: RequestHandler = async ({ request }) => {
     const remainingTime = Math.floor(Number(env.UPDATE_CHECK_INTERVAL) - fromLastCheck)
 
     if (fromLastCheck < Number(env.UPDATE_CHECK_INTERVAL))
-    return new Response(JSON.stringify({success: false, message: `☒ 플레이리스트가 이미 최근에 갱신되었습니다. ${remainingTime}초 뒤에 다시 시도하세요.`}), {status: 429, headers: { 'Retry-After': Math.floor(remainingTime).toString() }})
+    return new Response(JSON.stringify({success: false, message: `플레이리스트가 이미 최근에 갱신되었습니다. ${remainingTime}초 뒤에 다시 시도하세요.`}), {status: 429, headers: { 'Retry-After': Math.floor(remainingTime).toString() }})
 
-    if (isUpdating()) return new Response(JSON.stringify({success: false, message: "☒ 이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 409})
+    if (updating) return new Response(JSON.stringify({success: false, message: "이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 409})
 
-    setUpdatingState(true)
-    updatePlaylist(name)
-    return new Response(JSON.stringify({success: true, message: "☑ 갱신 요청이 완료되었습니다. 곧 페이지가 새로 고침 됩니다."}))
+    startUpdating(name)
+    return new Response(JSON.stringify({success: true, message: "갱신 요청이 완료되었습니다. 곧 페이지가 새로 고침 됩니다."}))
 }
