@@ -16,7 +16,7 @@ export async function load() {
         top3list.push({name: top3data[i + 1], count: top3data[i]});
     }
 
-    const lastUpdate: LastUpdate | null = await kv.hgetall('lastupdate')
+    const lastUpdate: LastUpdate = (await kv.hgetall('lastupdate')) ?? {at: 0, by: '', key: ''};
 
     const fromLastCheck = new Date().getTime() / 1000 - Number(await kv.get('lastcheck'))
     const updateAfter = fromLastCheck ? Math.ceil(Number(UPDATE_CHECK_INTERVAL) - fromLastCheck) : 0

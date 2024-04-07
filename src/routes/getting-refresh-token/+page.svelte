@@ -15,13 +15,8 @@
             });
     }
 
-    type ServerData = {
-        authUrl?: string
-        refreshToken?: string
-        error?: string
-    }
-
-    export let data: ServerData;
+    import type { PageData } from "./$types";
+    export let data: PageData;
 
     if (data.refreshToken) refreshToken = data.refreshToken
 </script>

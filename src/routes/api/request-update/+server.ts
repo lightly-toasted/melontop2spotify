@@ -11,8 +11,9 @@ function replaceDatetimePlaceholders(text: string) {
     const newDate = new Date()
     const formattedDate = new Intl.DateTimeFormat('ko-KR', {year: '2-digit', month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul'}).format(new Date(newDate))
     const formattedTime = new Intl.DateTimeFormat('ko-KR', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Seoul'}).format(new Date(newDate))
+    const date_6digit = formattedDate.replace(/\. ?/g, '')
     
-    return text.replace('%DATE%', formattedDate).replace('%TIME%', formattedTime);
+    return text.replace('%DATE%', formattedDate).replace('%TIME%', formattedTime).replace('%DATE_6DIGIT%', date_6digit);
 }
 
 function getCurrentTimestamp() {
@@ -45,11 +46,16 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
         chart.push(title);
     });
 
+    if (chart.length === 0) return {
+        success: false,
+        message: '멜론 차트 정보를 가져오는데 실패했습니다.'
+    }
+
     if (env.UPDATE_WHEN_CHART_NOT_CHANGED !== "true") {
         const chartHash = md5(chart.join(''))
         if (await kv.get('latestmelonchart') == chartHash) return {
             success: false,
-            message: '멜론 차트에 변경 사항이 없습니다.'
+            message: '멜론 차트에 변동 사항이 없습니다.'
         }
         await kv.set('latestmelonchart', chartHash)
     }
@@ -106,9 +112,9 @@ async function startUpdating(name: string) {
     setUpdatingState(false, result)
 }
 
-export const POST: RequestHandler = async ({ request }) => {
-    const data = await request.json()
-    const name = data.name ?? `익명${Math.floor(Math.random() * 100000000)}`
+export const GET: RequestHandler = async ({ request }) => {
+    const url = new URL(request.url);
+    const name = url.searchParams.get('name') ?? `익명${Math.floor(Math.random() * 100000000)}`;
     
     if (name.length < 1) return new Response(JSON.stringify({success: false, message: "이름은 최소 1자 이상이어야 합니다."}), {status: 400});
     if (name.length > 16) return new Response(JSON.stringify({success: false, message: "이름은 최대 16자 이하이어야 합니다."}), {status: 400});

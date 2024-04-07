@@ -1,10 +1,12 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { updateResult, updating } from '$lib/server/updating-state';
 
-export const POST: RequestHandler = async ({ request }) => {
-    const data = await request.json()
-    const timeout = data.timeout ?? 31000
+export const GET: RequestHandler = async ({ request }) => {
+    const url = new URL(request.url);
 
+    const timeoutParam = url.searchParams.get('timeout');
+    const timeout = timeoutParam ? Number(timeoutParam) : 31000;
+    
     const start = Date.now();
     while (updating) {
         if (Date.now() - start > timeout) {
