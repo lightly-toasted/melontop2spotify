@@ -57,17 +57,29 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
             success: false,
             message: '멜론 차트에 변동 사항이 없습니다.'
         }
-        await kv.set('latestmelonchart', chartHash)
+        kv.set('latestmelonchart', chartHash)
     }
 
+    const cachedSearchResults = (await kv.hgetall('cachedsearchresults')) as Record<string, string> ?? {} // I know HGETALL is slow, but Vercel limits requests for KV so don't blame me :(
+    const resultsToCache: Record<string, string> = {}
+
     const trackURIs = await Promise.all(
-        chart.map(async title => {
+        chart.map(async (title): Promise<string> => {
+            if (cachedSearchResults[title]) return cachedSearchResults[title]
             const results = await spotify.searchTracks(title, { market: 'KR' })
+
             let track_uri = env.UNAVAILABLE_TRACK_URI
-            if (results.body.tracks && results.body.tracks.items.length > 0) track_uri = results.body.tracks.items[0].uri
+            if (results.body.tracks && results.body.tracks.items.length > 0) {
+                const uri = results.body.tracks.items[0].uri
+                track_uri = uri
+                resultsToCache[title] = uri
+            }
             return track_uri
         })
     )
+    
+    if (Object.keys(resultsToCache).length > 0) kv.hset('cachedsearchresults', resultsToCache)
+    kv.expire('cachedsearchresults', 60 * 60 * 24 * 60)
 
     const maxRetries = 3
 
@@ -103,7 +115,7 @@ async function startUpdating(name: string) {
             timeoutPromise
         ]);
     } catch (e) {
-        //console.error(e)
+        console.error(e)
         result = {
             success: false,
             message: '알 수 없는 오류가 발생했습니다. Spotify API 문제일 확률이 높습니다.'
