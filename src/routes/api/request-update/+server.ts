@@ -91,25 +91,36 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     // search tracks
     const cachedSearchResults = (await kv.hgetall('cachedsearchresults')) as Record<string, string> ?? {}
     const resultsToCache: Record<string, string> = {}
-    const trackURIs = await Promise.all(
+    const trackURIPromises = await Promise.allSettled(
         chart.map(async (song): Promise<string> => {
             // use cached search results if possible
             if (cachedSearchResults[song.title]) return cachedSearchResults[song.title]
-            if (artists[song.artist]) {
-                const results = await spotify.searchTracks(`track:${song.title} artist:${artists[song.artist]}`, { market: 'KR' })
-                if (results.body.tracks && results.body.tracks.items.length > 0) {
-                    const uri = results.body.tracks.items[0].uri
-                    resultsToCache[song.title] = uri
-                    return uri
-                } // if not found, it will use alternative search query without artist filter
-            }
 
             // find track on spotify
             const results = await spotify.searchTracks(song.title, { market: 'KR' })
+            const blacklist = ["remix", "edit", "instrumental", "sped up", "slowed", "reverb", "acoustic", "피아노"]
+            let tracks = results.body.tracks?.items ?? [];
 
-            let track_uri = env.UNAVAILABLE_TRACK_URI
-            if (results.body.tracks && results.body.tracks.items.length > 0) {
-                const uri = results.body.tracks.items[0].uri
+            // filter tracks by blacklisted keywords and artist name
+            const filteredTracks = tracks?.filter(track => 
+                // filter song names with blacklisted keywords if song.title does not contain it
+                !blacklist.some(keyword => track.name.toLowerCase().includes(keyword) && !song.title.toLowerCase().includes(keyword))
+            ) ?? [];
+            const tracksByArtist = filteredTracks?.filter(track => track.artists[0].name === artists[song.artist]) ?? []
+            
+            // use filtered tracks if possible
+            if (tracksByArtist.length > 0) {
+                tracks = tracksByArtist
+                // use exact match if possible
+                const exactMatchTracks = tracks.filter(track => track.name.toLowerCase() === song.title.toLowerCase());
+                if (exactMatchTracks.length > 0) tracks = exactMatchTracks;
+            }
+            else if (filteredTracks.length > 0) tracks = filteredTracks
+
+            let track_uri = env.UNAVAILABLE_TRACK_URI // if track is not found, use placeholder track
+
+            if (tracks && tracks.length > 0) {
+                const uri = tracks[0].uri
                 track_uri = uri
                 resultsToCache[song.title] = uri
             }
@@ -120,6 +131,15 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     // cache track search results
     if (Object.keys(resultsToCache).length > 0) kv.hset('cachedsearchresults', resultsToCache)
     kv.expire('cachedsearchresults', 60 * 60 * 24 * 3)
+
+    // if some Search API requests failed, throw an error
+    if (trackURIPromises.some(result => result.status === 'rejected')) return {
+        success: false,
+        message: '트랙 검색 중 Spotify API 오류가 발생했습니다. 잠시 후에 다시 시도해주세요.'
+    }
+
+    const trackURIs = trackURIPromises.map((result: PromiseSettledResult<string>) => 
+    (result as PromiseFulfilledResult<string>).value);
 
     // replace tracks in playlist
     const maxRetries = 3
