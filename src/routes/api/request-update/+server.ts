@@ -95,13 +95,14 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     const trackURIPromises = await Promise.allSettled(
         chart.map(async (song): Promise<string> => {
             // filter blacklisted tracks
-            if (overrides.artists[song.artist] === null || overrides.tracks[song.title] === null) return env.UNAVAILABLE_TRACK_URI;
+            const melonTrackIdentifier = `${song.title} - ${song.artist}`
+            if (overrides.artists[song.artist] === null || overrides.tracks[melonTrackIdentifier] === null) return env.UNAVAILABLE_TRACK_URI;
 
             // use overrides if possible
-            if (overrides.tracks[song.title]) return overrides.tracks[song.title]!;
+            if (overrides.tracks[melonTrackIdentifier]) return overrides.tracks[melonTrackIdentifier]!;
 
             // use cached search results if possible
-            if (cachedSearchResults[song.title]) return cachedSearchResults[song.title]
+            if (cachedSearchResults[melonTrackIdentifier]) return cachedSearchResults[melonTrackIdentifier]
 
             // find track on spotify
             const results = await spotify.searchTracks(song.title, { market: 'KR' })
