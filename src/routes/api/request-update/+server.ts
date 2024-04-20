@@ -87,7 +87,7 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     // cache artists
     if (Object.keys(artistsToCache).length > 0) kv.hset('knownartists', artistsToCache)
     kv.expire('knownartists', 60 * 60 * 24 * 7)
-    const artists = {...cachedKnownArtists, ...artistsToCache, ...overrides.artists}
+    const artists = {...cachedKnownArtists, ...artistsToCache}
 
     // search tracks
     const cachedSearchResults = (await kv.hgetall('cachedsearchresults')) as Record<string, string> ?? {}
