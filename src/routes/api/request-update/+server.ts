@@ -6,6 +6,7 @@ import { kv } from '$lib/server/kv';
 import { spotify } from '$lib/server/spotify';
 import { setUpdatingState, updating, type UpdateResult } from '$lib/server/updating-state';
 import md5 from 'md5';
+import { overrides } from '$lib/server/overrides';
 
 function replaceDatetimePlaceholders(text: string) {
     const newDate = new Date()
@@ -86,13 +87,19 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     // cache artists
     if (Object.keys(artistsToCache).length > 0) kv.hset('knownartists', artistsToCache)
     kv.expire('knownartists', 60 * 60 * 24 * 7)
-    const artists = {...cachedKnownArtists, ...artistsToCache}
+    const artists = {...cachedKnownArtists, ...artistsToCache, ...overrides.artists}
 
     // search tracks
     const cachedSearchResults = (await kv.hgetall('cachedsearchresults')) as Record<string, string> ?? {}
     const resultsToCache: Record<string, string> = {}
     const trackURIPromises = await Promise.allSettled(
         chart.map(async (song): Promise<string> => {
+            // filter blacklisted tracks
+            if (overrides.artists[song.artist] === null || overrides.tracks[song.title] === null) return env.UNAVAILABLE_TRACK_URI;
+
+            // use overrides if possible
+            if (overrides.tracks[song.title]) return overrides.tracks[song.title]!;
+
             // use cached search results if possible
             if (cachedSearchResults[song.title]) return cachedSearchResults[song.title]
 
