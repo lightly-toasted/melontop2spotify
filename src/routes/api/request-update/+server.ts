@@ -199,6 +199,7 @@ async function startUpdating(name: string) {
         }
     }
     setUpdatingState(false, result)
+    return result
 }
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -227,9 +228,14 @@ export const GET: RequestHandler = async ({ request }) => {
     const remainingTime = Math.floor(Number(env.UPDATE_CHECK_INTERVAL) - fromLastCheck)
 
     if (fromLastCheck < Number(env.UPDATE_CHECK_INTERVAL))
-    return new Response(JSON.stringify({success: false, message: `플레이리스트가 이미 최근에 갱신되었습니다. ${remainingTime}초 뒤에 다시 시도하세요.`}), {status: 429, headers: { 'Retry-After': Math.floor(remainingTime).toString() }})
+    return new Response(JSON.stringify({success: false, message: `플레이리스트가 이미 최근에 갱신되었습니다. ${remainingTime}초 뒤에 다시 시도하세요.`}), {status: 202, headers: { 'Retry-After': Math.floor(remainingTime).toString() }})
 
-    if (updating) return new Response(JSON.stringify({success: false, message: "이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 409})
+    if (updating) return new Response(JSON.stringify({success: false, message: "이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 202})
+
+    if (url.searchParams.get('wait')?.toLowerCase() === 'true') {
+        const result = await startUpdating(name)
+        return new Response(JSON.stringify(result), {status: result.success ? 200 : 500})
+    }
 
     startUpdating(name)
     return new Response(JSON.stringify({success: true, message: "갱신 요청이 완료되었습니다. 곧 페이지가 새로 고침 됩니다."}))

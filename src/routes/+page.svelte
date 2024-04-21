@@ -45,7 +45,7 @@
         const response = await fetch(`/api/request-update?name=${encodeURIComponent(name)}`);
         requestResponse = await response.json();
         if (requestResponse.success) {
-            const response = await fetch(`/api/wait-until-update`);
+            const response = await fetch(`/api/wait-for-update`);
             const updateData = await response.json();
 
             const urlParams = new URLSearchParams();

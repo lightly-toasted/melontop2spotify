@@ -1,7 +1,7 @@
 {
     "crons": [
         {
-            "path": "/api/request-update?name=Vercel",
+            "path": "/api/request-update?name=Vercel&wait=true",
             "schedule": "0 7 * * *"
         }
     ]
