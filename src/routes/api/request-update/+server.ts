@@ -2,7 +2,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import * as env from '$env/static/private';
 import axios from 'axios';
 import { parse } from 'node-html-parser';
-import { kv } from '$lib/server/kv';
+import { kv, kvKeys } from '$lib/server/kv';
 import { spotify } from '$lib/server/spotify';
 import { setUpdatingState, updating, type UpdateResult } from '$lib/server/updating-state';
 import md5 from 'md5';
@@ -23,7 +23,7 @@ function getCurrentTimestamp() {
 
 async function updatePlaylist(name: string): Promise<UpdateResult> {
     // update playlist descriptions
-    kv.set('lastcheck', getCurrentTimestamp())
+    kv.set(kvKeys.LAST_CHECK, getCurrentTimestamp())
 
     const refreshData = await spotify.refreshAccessToken()
     spotify.setAccessToken(refreshData.body.access_token)
@@ -63,34 +63,34 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
 
     if (env.UPDATE_WHEN_CHART_NOT_CHANGED !== "true") {
         const chartHash = md5(chart.join(''))
-        if (await kv.get('latestmelonchart') == chartHash) return {
+        if (await kv.get(kvKeys.LATEST_MELON_CHART) == chartHash) return {
             success: false,
             message: '멜론 차트에 변동 사항이 없습니다.'
         }
-        kv.set('latestmelonchart', chartHash)
+        kv.set(kvKeys.LATEST_MELON_CHART, chartHash)
     }
 
     // artists' names will be used to improve track search results
     // I know HGETALL is slow, but Vercel limits requests for KV so don't blame me :(
-    const cachedKnownArtists: Record<string, string> = (await kv.hgetall('knownartists')) as Record<string, string> ?? {}
+    const cachedArtists: Record<string, string> = (await kv.hgetall(kvKeys.CACHED_ARTISTS)) as Record<string, string> ?? {}
     const artistSet = [...new Set(chart.map(song => song.artist))]; // using Set to remove duplicated values
 
     const artistsToCache: Record<string, string> = {};
     
     await Promise.all(artistSet.map(async (artist) => {
-        if (cachedKnownArtists[artist]) return;
+        if (cachedArtists[artist]) return;
         const results = await spotify.searchArtists(artist, { market: 'KR' })
-        const artistName = results.body.artists?.items[0]?.name;
-        if (artistName) artistsToCache[artist] = artistName;
+        const artistURI = results.body.artists?.items[0]?.uri;
+        if (artistURI) artistsToCache[artist] = artistURI;
     }));
 
     // cache artists
-    if (Object.keys(artistsToCache).length > 0) kv.hset('knownartists', artistsToCache)
+    if (Object.keys(artistsToCache).length > 0) kv.hset(kvKeys.CACHED_ARTISTS, artistsToCache)
     kv.expire('knownartists', 60 * 60 * 24 * 7)
-    const artists = {...cachedKnownArtists, ...artistsToCache}
+    const artists = {...cachedArtists, ...artistsToCache, ...overrides.artists}
 
     // search tracks
-    const cachedSearchResults = (await kv.hgetall('cachedsearchresults')) as Record<string, string> ?? {}
+    const cachedSearchResults = (await kv.hgetall(kvKeys.CACHED_SEARCH_RESULTS)) as Record<string, string> ?? {}
     const resultsToCache: Record<string, string> = {}
     const trackURIPromises = await Promise.allSettled(
         chart.map(async (song): Promise<string> => {
@@ -114,7 +114,9 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
                 // filter song names with blacklisted keywords if song.title does not contain it
                 !blacklist.some(keyword => track.name.toLowerCase().includes(keyword) && !song.title.toLowerCase().includes(keyword))
             ) ?? [];
-            const tracksByArtist = filteredTracks?.filter(track => track.artists[0].name === artists[song.artist]) ?? []
+            const tracksByArtist = filteredTracks?.filter(track => 
+                track.artists.some(artist => artist.uri === artists[song.artist])
+            ) ?? [];
             
             // use filtered tracks if possible
             if (tracksByArtist.length > 0) {
@@ -137,8 +139,8 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     )
     
     // cache track search results
-    if (Object.keys(resultsToCache).length > 0) kv.hset('cachedsearchresults', resultsToCache)
-    kv.expire('cachedsearchresults', 60 * 60 * 24 * 3)
+    if (Object.keys(resultsToCache).length > 0) kv.hset(kvKeys.CACHED_SEARCH_RESULTS, resultsToCache)
+    kv.expire(kvKeys.CACHED_SEARCH_RESULTS, 60 * 60 * 24 * 3)
 
     // if some Search API requests failed, throw an error
     if (trackURIPromises.some(result => result.status === 'rejected')) return {
@@ -163,8 +165,8 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     }
 
     // update last update data
-    kv.hset('lastupdate', { at: getCurrentTimestamp(), by: name })
-    const currentCount = await kv.zincrby('topupdaters', 1, name)
+    kv.hset(kvKeys.LAST_UPDATE, { at: getCurrentTimestamp(), by: name })
+    const currentCount = await kv.zincrby(kvKeys.TOP_UPDATERS, 1, name)
     return {
         success: true,
         message: `갱신 성공! ${name} (${currentCount})`
@@ -220,7 +222,7 @@ export const GET: RequestHandler = async ({ request }) => {
     }
 
     // check last update
-    const fromLastCheck = getCurrentTimestamp() - Number(await kv.get('lastcheck'))
+    const fromLastCheck = getCurrentTimestamp() - Number(await kv.get(kvKeys.LAST_CHECK))
 
     const remainingTime = Math.floor(Number(env.UPDATE_CHECK_INTERVAL) - fromLastCheck)
 
