@@ -28,8 +28,8 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     const refreshData = await spotify.refreshAccessToken()
     spotify.setAccessToken(refreshData.body.access_token)
 
-    const newPlaylistName = replaceDatetimePlaceholders(env.PLAYLIST_NAME)
-    const newPlaylistDesc = replaceDatetimePlaceholders(env.PLAYLIST_DESC)
+    const newPlaylistName = replaceDatetimePlaceholders(env.PLAYLIST_NAME || '%DATE_6DIGIT% MELON TOP 100')
+    const newPlaylistDesc = replaceDatetimePlaceholders(env.PLAYLIST_DESC || '한국 시간 %DATE% %TIME% 기준')
 
     await spotify.changePlaylistDetails(env.PLAYLIST_ID, { name: newPlaylistName, description: newPlaylistDesc })
 
@@ -38,7 +38,7 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36"
     }
 
-    const response = await axios.get(env.MELON_URL, { headers })
+    const response = await axios.get(env.MELON_URL || 'https://www.melon.com/chart/index.htm', { headers })
 
     const root = parse(response.data);
     const chart: {
@@ -96,7 +96,8 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
         chart.map(async (song): Promise<string> => {
             // filter blacklisted tracks
             const melonTrackIdentifier = `${song.title} - ${song.artist}`
-            if (overrides.artists[song.artist] === null || overrides.tracks[melonTrackIdentifier] === null) return env.UNAVAILABLE_TRACK_URI;
+            let track_uri = env.UNAVAILABLE_TRACK_URI || 'spotify:track:4jaXxB0DJ6X4PdjMK8XVfu' // if not found, it will use this placeholder track
+            if (overrides.artists[song.artist] === null || overrides.tracks[melonTrackIdentifier] === null) return track_uri;
 
             // use overrides if possible
             if (overrides.tracks[melonTrackIdentifier]) return overrides.tracks[melonTrackIdentifier]!;
@@ -126,8 +127,6 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
                 if (exactMatchTracks.length > 0) tracks = exactMatchTracks;
             }
             else if (filteredTracks.length > 0) tracks = filteredTracks
-
-            let track_uri = env.UNAVAILABLE_TRACK_URI // if track is not found, use placeholder track
 
             if (tracks && tracks.length > 0) {
                 const uri = tracks[0].uri
@@ -225,9 +224,10 @@ export const GET: RequestHandler = async ({ request }) => {
     // check last update
     const fromLastCheck = getCurrentTimestamp() - Number(await kv.get(kvKeys.LAST_CHECK))
 
-    const remainingTime = Math.floor(Number(env.UPDATE_CHECK_INTERVAL) - fromLastCheck)
+    const updateInterval = Number(env.UPDATE_CHECK_INTERVAL) || 600
+    const remainingTime = Math.floor(updateInterval - fromLastCheck)
 
-    if (fromLastCheck < Number(env.UPDATE_CHECK_INTERVAL))
+    if (fromLastCheck < updateInterval)
     return new Response(JSON.stringify({success: false, message: `플레이리스트가 이미 최근에 갱신되었습니다. ${remainingTime}초 뒤에 다시 시도하세요.`}), {status: 202, headers: { 'Retry-After': Math.floor(remainingTime).toString() }})
 
     if (updating) return new Response(JSON.stringify({success: false, message: "이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 202})
