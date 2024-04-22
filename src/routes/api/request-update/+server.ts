@@ -64,7 +64,7 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     if (env.UPDATE_WHEN_CHART_NOT_CHANGED !== "true") {
         const chartHash = md5(chart.join(''))
         if (await kv.get(kvKeys.LATEST_MELON_CHART) == chartHash) return {
-            success: false,
+            success: true,
             message: '멜론 차트에 변동 사항이 없습니다.'
         }
         kv.set(kvKeys.LATEST_MELON_CHART, chartHash)
