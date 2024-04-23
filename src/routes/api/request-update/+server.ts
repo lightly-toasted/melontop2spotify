@@ -25,6 +25,10 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     // update playlist descriptions
     kv.set(kvKeys.LAST_CHECK, getCurrentTimestamp())
 
+    if (!env.REFRESH_TOKEN) return {
+        success: false,
+        message: 'Refresh Token이 없습니다. /getting-refresh-token'
+    };
     const refreshData = await spotify.refreshAccessToken()
     spotify.setAccessToken(refreshData.body.access_token)
 
