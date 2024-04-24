@@ -156,7 +156,10 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
             await spotify.replaceTracksInPlaylist(env.PLAYLIST_ID, trackURIs);
             break;
         } catch (e) {
-            if (i === maxRetries - 1) throw e;
+            if (i === maxRetries - 1) return {
+                success: false,
+                message: '플레이리스트 변경 중 Spotify API 오류가 발생했습니다. 잠시 후에 다시 시도해주세요.'
+            };
             await new Promise(resolve => setTimeout(resolve, 4000));
         }
     }
@@ -192,7 +195,7 @@ async function startUpdating(name: string) {
         console.error(e)
         result = {
             success: false,
-            message: '알 수 없는 오류가 발생했습니다. Spotify API 문제일 확률이 높습니다.'
+            message: '알 수 없는 오류가 발생했습니다.'
         }
     }
     setUpdatingState(false, result)
