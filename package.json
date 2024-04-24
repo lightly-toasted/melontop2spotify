@@ -28,7 +28,6 @@
 	"dependencies": {
 		"@vercel/kv": "^1.0.1",
 		"axios": "^1.6.8",
-		"md5": "^2.3.0",
 		"node-html-parser": "^6.1.13",
 		"spotify-web-api-node": "^5.0.2"
 	}

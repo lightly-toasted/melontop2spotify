@@ -12,5 +12,4 @@ export const kvKeys = {
     LAST_CHECK: 'lastcheck',
     LAST_UPDATE: 'lastupdate',
     TOP_UPDATERS: 'topupdaters',
-    LATEST_MELON_CHART: 'latestmelonchart',
 }

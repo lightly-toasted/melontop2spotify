@@ -5,7 +5,6 @@ import { parse } from 'node-html-parser';
 import { kv, kvKeys } from '$lib/server/kv';
 import { spotify } from '$lib/server/spotify';
 import { setUpdatingState, updating, type UpdateResult } from '$lib/server/updating-state';
-import md5 from 'md5';
 import { overrides } from '$lib/server/overrides';
 
 function replaceDatetimePlaceholders(text: string) {
@@ -45,19 +44,16 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     const response = await axios.get(env.MELON_URL || 'https://www.melon.com/chart/index.htm', { headers })
 
     const root = parse(response.data);
-    const chart: {
-        title: string,
-        artist: string
-    }[] = [];
 
     const songs = root.querySelectorAll('.lst50, .lst100');
-    songs.forEach(song => {
+    const chart = songs.map(song => {
         const title = song.querySelector('.ellipsis.rank01')?.text.trim()!;
         const artist = song.querySelector('.ellipsis.rank02 a')?.text.trim()!;
-        chart.push({
-            title,
-            artist
-        });
+
+        return {
+            title, artist,
+            id: `${title} - ${artist}`
+        };
     });
 
     if (chart.length === 0) return {
@@ -65,17 +61,17 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
         message: '멜론 차트 정보를 가져오는데 실패했습니다.'
     }
 
+    // I know HGETALL is slow, but Vercel limits requests for KV so don't blame me :(
+    const cachedSearchResults = (await kv.hgetall(kvKeys.CACHED_SEARCH_RESULTS)) as Record<string, string> ?? {}
+
     if (env.UPDATE_WHEN_CHART_NOT_CHANGED !== "true") {
-        const chartHash = md5(chart.join(''))
-        if (await kv.get(kvKeys.LATEST_MELON_CHART) == chartHash) return {
+        if (Object.keys(cachedSearchResults) === chart.map(song => song.id)) return {
             success: true,
             message: '멜론 차트에 변동 사항이 없습니다.'
         }
-        kv.set(kvKeys.LATEST_MELON_CHART, chartHash)
     }
 
     // artists' names will be used to improve track search results
-    // I know HGETALL is slow, but Vercel limits requests for KV so don't blame me :(
     const cachedArtists: Record<string, string> = (await kv.hgetall(kvKeys.CACHED_ARTISTS)) as Record<string, string> ?? {}
     const artistSet = [...new Set(chart.map(song => song.artist))]; // using Set to remove duplicated values
 
@@ -94,20 +90,18 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
     const artists = {...cachedArtists, ...artistsToCache, ...overrides.artists}
 
     // search tracks
-    const cachedSearchResults = (await kv.hgetall(kvKeys.CACHED_SEARCH_RESULTS)) as Record<string, string> ?? {}
     const resultsToCache: Record<string, string> = {}
     const trackURIPromises = await Promise.allSettled(
         chart.map(async (song): Promise<string> => {
             // filter blacklisted tracks
-            const melonTrackIdentifier = `${song.title} - ${song.artist}`
             let track_uri = env.UNAVAILABLE_TRACK_URI || 'spotify:track:4jaXxB0DJ6X4PdjMK8XVfu' // if not found, it will use this placeholder track
-            if (overrides.artists[song.artist] === null || overrides.tracks[melonTrackIdentifier] === null) return track_uri;
+            if (overrides.artists[song.artist] === null || overrides.tracks[song.id] === null) return track_uri;
 
             // use overrides if possible
-            if (overrides.tracks[melonTrackIdentifier]) return overrides.tracks[melonTrackIdentifier]!;
+            if (overrides.tracks[song.id]) return overrides.tracks[song.id]!;
 
             // use cached search results if possible
-            if (cachedSearchResults[melonTrackIdentifier]) return cachedSearchResults[melonTrackIdentifier]
+            if (cachedSearchResults[song.id]) return cachedSearchResults[song.id]
 
             // find track on spotify
             const results = await spotify.searchTracks(song.title, { market: 'KR' })
@@ -135,7 +129,7 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
             if (tracks && tracks.length > 0) {
                 const uri = tracks[0].uri
                 track_uri = uri
-                resultsToCache[song.title] = uri
+                resultsToCache[song.id] = uri
             }
             return track_uri
         })
