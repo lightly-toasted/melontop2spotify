@@ -9,7 +9,7 @@ export const kv = createClient({
 export const kvKeys = {
     CACHED_SEARCH_RESULTS: 'cachedsearchresults',
     CACHED_ARTISTS: 'cachedartists',
-    LAST_CHECK: 'lastcheck',
     LAST_UPDATE: 'lastupdate',
+    NEXT_UPDATE: 'nextupdate',
     TOP_UPDATERS: 'topupdaters',
 }

@@ -33,4 +33,5 @@
 - `MELON_URL`: The URL to fetch the Melon TOP 100 chart data from.
 
 - `UPDATE_CHECK_INTERVAL`: The interval in seconds between checks for updates to the Melon chart.
+- `RETRY_DELAY`: The number of seconds to wait before retrying update after a failure.
 - `UPDATE_WHEN_CHART_NOT_CHANGED`: A boolean to decide whether to update the playlist even if the Melon chart has not changed.

@@ -7,6 +7,9 @@ import { spotify } from '$lib/server/spotify';
 import { setUpdatingState, updating, type UpdateResult } from '$lib/server/updating-state';
 import { overrides } from '$lib/server/overrides';
 
+const updateInterval = Number(env.UPDATE_CHECK_INTERVAL) || 600
+const retryDelay = Number(env.RETRY_DELAY) || 60
+
 function replaceDatetimePlaceholders(text: string) {
     const newDate = new Date()
     const formattedDate = new Intl.DateTimeFormat('ko-KR', {year: '2-digit', month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul'}).format(new Date(newDate))
@@ -21,9 +24,6 @@ function getCurrentTimestamp() {
 }
 
 async function updatePlaylist(name: string): Promise<UpdateResult> {
-    // update playlist descriptions
-    kv.set(kvKeys.LAST_CHECK, getCurrentTimestamp())
-
     if (!env.REFRESH_TOKEN) return {
         success: false,
         message: 'Refresh Token이 없습니다. /getting-refresh-token'
@@ -176,6 +176,7 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
 async function startUpdating(name: string) {
     setUpdatingState(true)
     let result: UpdateResult;
+    await kv.set(kvKeys.NEXT_UPDATE, getCurrentTimestamp() + updateInterval)
     try {
         // timeout after 30 seconds
         const timeoutPromise = new Promise<UpdateResult>((resolve) => {
@@ -199,6 +200,7 @@ async function startUpdating(name: string) {
         }
     }
     setUpdatingState(false, result)
+    if (!result.success) await kv.set(kvKeys.NEXT_UPDATE, getCurrentTimestamp() + retryDelay)
     return result
 }
 
@@ -223,9 +225,7 @@ export const GET: RequestHandler = async ({ request }) => {
     }
 
     // check last update
-    const fromLastCheck = getCurrentTimestamp() - Number(await kv.get(kvKeys.LAST_CHECK))
-
-    const updateInterval = Number(env.UPDATE_CHECK_INTERVAL) || 600
+    const fromLastCheck =  Number(await kv.get(kvKeys.NEXT_UPDATE)) - getCurrentTimestamp()
     const remainingTime = Math.floor(updateInterval - fromLastCheck)
 
     if (fromLastCheck < updateInterval)
