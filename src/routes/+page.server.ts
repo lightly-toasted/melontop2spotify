@@ -1,4 +1,3 @@
-import { UPDATE_CHECK_INTERVAL } from '$env/static/private';
 import { kv, kvKeys } from '$lib/server/kv';
 
 export async function load() {
@@ -15,7 +14,6 @@ export async function load() {
         by: string;
     } = (await kv.hgetall(kvKeys.LAST_UPDATE)) ?? {at: 0, by: ''};
 
-    const fromLastCheck = Number(await kv.get(kvKeys.NEXT_UPDATE)) - new Date().getTime() / 1000
-    const updateAfter = Math.ceil(Number(UPDATE_CHECK_INTERVAL) - fromLastCheck)
+    const updateAfter = Math.floor(Number(await kv.get(kvKeys.NEXT_UPDATE)) - new Date().getTime() / 1000)
     return {top3, lastUpdate, updateAfter}
 }

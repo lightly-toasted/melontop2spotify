@@ -225,10 +225,9 @@ export const GET: RequestHandler = async ({ request }) => {
     }
 
     // check last update
-    const fromLastCheck =  Number(await kv.get(kvKeys.NEXT_UPDATE)) - getCurrentTimestamp()
-    const remainingTime = Math.floor(updateInterval - fromLastCheck)
+    const remainingTime = Math.floor(Number(await kv.get(kvKeys.NEXT_UPDATE)) - getCurrentTimestamp())
 
-    if (fromLastCheck < updateInterval)
+    if (remainingTime > 0)
     return new Response(JSON.stringify({success: false, message: `플레이리스트가 이미 최근에 갱신되었습니다. ${remainingTime}초 뒤에 다시 시도하세요.`}), {status: 202, headers: { 'Retry-After': Math.floor(remainingTime).toString() }})
 
     if (updating) return new Response(JSON.stringify({success: false, message: "이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 202})
