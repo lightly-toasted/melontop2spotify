@@ -4,11 +4,6 @@
         message: string,
     }
 
-    type LastUpdate = {
-        by: string,
-        at: number,
-    }
-
     let updateButton;
     let name: string = `익명${Math.floor(Math.random() * 100000000)}`;
     let isEditingName = false;

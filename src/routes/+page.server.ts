@@ -2,7 +2,7 @@ import { UPDATE_CHECK_INTERVAL } from '$env/static/private';
 import { kv, kvKeys } from '$lib/server/kv';
 
 export async function load() {
-    const top3data = await kv.zrange('topupdaters', -3, -1, {withScores: true});
+    const top3data = await kv.zrange(kvKeys.TOP_UPDATERS, -3, -1, {withScores: true});
     top3data.reverse();
     
     let top3 = [];
