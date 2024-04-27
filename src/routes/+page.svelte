@@ -89,6 +89,7 @@
 </script>
 
 <div class='px-4 md:px-15 xl:px-40 pt-20 md:pt-40'>
+    <script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="tooast" data-description="Support me on Buy me a coffee!" data-message="" data-color="#FFF" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
     <div class='flex flex-row xl:mr-8'>
         <div class='flex flex-col w-full :w-3/4'>
             <h1 class="font-black text-6xl md:text-7xl xl:text-8xl text-text"><span class="text-accent">멜론 차트</span>를 <br>Spotify에서.</h1>
