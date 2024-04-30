@@ -123,21 +123,18 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
                 // use exact match if possible
                 const exactMatchTracks = tracks.filter(track => track.name.toLowerCase() === song.title.toLowerCase());
                 if (exactMatchTracks.length > 0) tracks = exactMatchTracks;
+                resultsToCache[song.id] = tracks[0].uri
             }
             else if (filteredTracks.length > 0) tracks = filteredTracks
 
-            if (tracks && tracks.length > 0) {
-                const uri = tracks[0].uri
-                track_uri = uri
-                resultsToCache[song.id] = uri
-            }
+            if (tracks && tracks.length > 0) track_uri = tracks[0].uri
             return track_uri
         })
     )
     
     // cache track search results
     if (Object.keys(resultsToCache).length > 0) kv.hset(kvKeys.CACHED_SEARCH_RESULTS, resultsToCache)
-    kv.expire(kvKeys.CACHED_SEARCH_RESULTS, 60 * 60 * 24 * 3)
+    kv.expire(kvKeys.CACHED_SEARCH_RESULTS, 60 * 60 * 24)
 
     // if some Search API requests failed, throw an error
     if (trackURIPromises.some(result => result.status === 'rejected')) return {
