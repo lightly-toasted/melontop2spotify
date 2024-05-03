@@ -105,7 +105,7 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
 
             // find track on spotify
             const results = await spotify.searchTracks(song.title, { market: 'KR' })
-            const blacklist = ["remix", "edit", "instrumental", "sped up", "slowed", "reverb", "acoustic", "피아노"]
+            const blacklist = ["remix", "edit", "instrumental", "sped up", "slowed", "reverb", "acoustic", "피아노", "inst."]
             let tracks = results.body.tracks?.items ?? [];
 
             // filter tracks by blacklisted keywords and artist name

@@ -19,6 +19,7 @@ export const overrides: {
         "파이팅 해야지 (Feat. 이영지) - 부석순 (SEVENTEEN)": "spotify:track:7eBpUuPnDTfbeP1P4P93CS",
         "Time Machine (Feat. 태연, 마크) - 도영 (DOYOUNG)": "spotify:track:3zA99edHgR3TIOeUJapvGY",
         "SPOT! (feat. JENNIE) - 지코 (ZICO)": "spotify:track:1SS0WlKhJewviwEDZ6dWj0",
+        "청춘찬가 - 세븐틴 (SEVENTEEN)": "spotify:track:1XvOEvWtfa879Wk1wKHZ1M"
     },
     artists: {
         // "멜론 아티스트 이름": "스포티파이 아티스트 이름"
