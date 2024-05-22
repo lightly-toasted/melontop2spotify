@@ -20,7 +20,8 @@ export const overrides: {
         "Time Machine (Feat. 태연, 마크) - 도영 (DOYOUNG)": "spotify:track:3zA99edHgR3TIOeUJapvGY",
         "SPOT! (feat. JENNIE) - 지코 (ZICO)": "spotify:track:1SS0WlKhJewviwEDZ6dWj0",
         "청춘찬가 - 세븐틴 (SEVENTEEN)": "spotify:track:1XvOEvWtfa879Wk1wKHZ1M",
-        "그랬나봐 - 유회승 (엔플라잉)": "spotify:track:4H0jGKPyORcxowWlXgSdth"
+        "그랬나봐 - 유회승 (엔플라잉)": "spotify:track:4H0jGKPyORcxowWlXgSdth",
+        "한 페이지가 될 수 있게 - DAY6 (데이식스)": "spotify:track:0btLaqWlXsOWLcpjE1jmIk"
     },
     artists: {
         // "멜론 아티스트 이름": "스포티파이 아티스트 이름"
