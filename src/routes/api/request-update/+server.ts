@@ -9,6 +9,7 @@ import { overrides } from '$lib/server/overrides';
 
 const updateInterval = Number(env.UPDATE_CHECK_INTERVAL) || 600
 const retryDelay = Number(env.RETRY_DELAY) || 60
+const blacklist = ["remix", "edit", "instrumental", "sped up", "slowed", "reverb", "acoustic", "피아노", "inst."]
 
 function replaceDatetimePlaceholders(text: string) {
     const newDate = new Date()
@@ -104,9 +105,15 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
             if (cachedSearchResults[song.id]) return cachedSearchResults[song.id]
 
             // find track on spotify
-            const results = await spotify.searchTracks(song.title, { market: 'KR' })
-            const blacklist = ["remix", "edit", "instrumental", "sped up", "slowed", "reverb", "acoustic", "피아노", "inst."]
+            const results = await spotify.search(song.title, ['album', 'track'], { market: 'KR' })
             let tracks = results.body.tracks?.items ?? [];
+            const albumIDs = results.body.albums?.items.map(album => album.id) ?? [];
+            if (albumIDs.length > 0) {
+              // 'simplified' Albums from /search has no tracks array, so it needs another API request to /albums.
+              const results = await spotify.getAlbums(albumIDs, { market: 'KR' })
+              const albumTracks = results.body.albums.map(album => album.tracks.items[0] as SpotifyApi.TrackObjectFull) 
+              tracks = [...albumTracks, ...tracks]
+            }
 
             // filter tracks by blacklisted keywords and artist name
             const filteredTracks = tracks?.filter(track => 
