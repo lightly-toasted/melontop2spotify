@@ -22,7 +22,8 @@ export const overrides: {
         "청춘찬가 - 세븐틴 (SEVENTEEN)": "spotify:track:1XvOEvWtfa879Wk1wKHZ1M",
         "그랬나봐 - 유회승 (엔플라잉)": "spotify:track:4H0jGKPyORcxowWlXgSdth",
         "한 페이지가 될 수 있게 - DAY6 (데이식스)": "spotify:track:0btLaqWlXsOWLcpjE1jmIk",
-        "클락션 (Klaxon) - (여자)아이들": "spotify:track:294hRgOqnGW2BemqP8D35X"
+        "클락션 (Klaxon) - (여자)아이들": "spotify:track:294hRgOqnGW2BemqP8D35X",
+        "멈추지 않아 - PLAVE": "spotify:track:1riEr6o3obQxrQRFmD9Sed"
     },
     artists: {
         // "멜론 아티스트 이름": "스포티파이 아티스트 이름"
