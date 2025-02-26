@@ -24,7 +24,7 @@ function getCurrentTimestamp() {
     return new Date().getTime() / 1000
 }
 
-async function updatePlaylist(name: string): Promise<UpdateResult> {
+async function updatePlaylist(): Promise<UpdateResult> {
     if (!env.REFRESH_TOKEN) return {
         success: false,
         message: 'Refresh Token이 없습니다. /getting-refresh-token'
@@ -168,16 +168,13 @@ async function updatePlaylist(name: string): Promise<UpdateResult> {
         }
     }
 
-    // update last update data
-    kv.hset(kvKeys.LAST_UPDATE, { at: getCurrentTimestamp(), by: name })
-    const currentCount = await kv.zincrby(kvKeys.TOP_UPDATERS, 1, name)
     return {
         success: true,
-        message: `갱신 성공! ${name} (${currentCount})`
+        message: "갱신 성공"
     }
 }
 
-async function startUpdating(name: string) {
+async function startUpdating() {
     setUpdatingState(true)
     let result: UpdateResult;
     await kv.set(kvKeys.NEXT_UPDATE, getCurrentTimestamp() + updateInterval)
@@ -193,7 +190,7 @@ async function startUpdating(name: string) {
         });
 
         result = await Promise.race([
-            updatePlaylist(name),
+            updatePlaylist(),
             timeoutPromise
         ]);
     } catch (e) {
@@ -208,25 +205,9 @@ async function startUpdating(name: string) {
     return result
 }
 
-export const GET: RequestHandler = async ({ request }) => {
-    const url = new URL(request.url);
-    const name = url.searchParams.get('name') ?? `익명${Math.floor(Math.random() * 100000000)}`;
-    
-    // name validation    
-    if (name.length < 1) return new Response(JSON.stringify({success: false, message: "이름은 최소 1자 이상이어야 합니다."}), {status: 400});
-    if (name.length > 16) return new Response(JSON.stringify({success: false, message: "이름은 최대 16자 이하이어야 합니다."}), {status: 400});
-
-    const nameRegex = /^[A-Za-z0-9ㄱ-ㅎ가-힣]+$/;
-    if (!nameRegex.test(name)) {
-        return new Response(JSON.stringify({success: false, message: "이름은 영문, 한글, 숫자만 포함해야 합니다."}), {status: 400});
-    }
-
-    const blacklistedWords = ['도박', '카지노', '베팅']; // add as many as you want
-    for (let word of blacklistedWords) {
-        if (name.includes(word)) {
-            return new Response(JSON.stringify({success: false, message: `이름에 금지된 단어 '${word}' 가 포함되어 있습니다.`}), {status: 400});
-        }
-    }
+export const GET: RequestHandler = async ({ url, request }) => {
+    const token = request.headers.get('Authorization')
+    if (token !== 'Bearer ' + env.CRON_SECRET) return new Response(JSON.stringify({success: false, message: "토큰이 잘못되었습니다."}), {status: 401})
 
     // check last update
     const remainingTime = Math.floor(Number(await kv.get(kvKeys.NEXT_UPDATE)) - getCurrentTimestamp())
@@ -237,10 +218,10 @@ export const GET: RequestHandler = async ({ request }) => {
     if (updating) return new Response(JSON.stringify({success: false, message: "이미 다른 갱신 요청이 처리 중이에요. 잠시 기다려주세요."}), {status: 202})
 
     if (url.searchParams.get('wait')?.toLowerCase() === 'true') {
-        const result = await startUpdating(name)
+        const result = await startUpdating()
         return new Response(JSON.stringify(result), {status: result.success ? 200 : 500})
     }
 
-    startUpdating(name)
+    startUpdating()
     return new Response(JSON.stringify({success: true, message: "갱신 요청이 완료되었습니다. 곧 페이지가 새로 고침 됩니다."}))
 }
